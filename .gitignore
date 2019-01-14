@@ -5,6 +5,8 @@ temp/
 results/
 coverage/
 
+assets/
+
 # files
 *.log
 
