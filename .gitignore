@@ -5,6 +5,8 @@ temp/
 results/
 coverage/
 
+db.json
+
 assets/
 
 # files

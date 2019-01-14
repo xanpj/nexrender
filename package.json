@@ -20,6 +20,7 @@
   "repository": "inlife/nexrender",
   "license": "MIT",
   "dependencies": {
+    "@google-cloud/compute": "^0.11.0",
     "async": "^2.0.0-rc.6",
     "aws-sdk": "^2.157.0",
     "body-parser": "^1.15.0",
