@@ -71,6 +71,7 @@ module.exports = function(project) {
 
         }, function(err){
           console.log(err)
+          reject(err);
         })
       })
     } catch(err){

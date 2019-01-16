@@ -11,7 +11,7 @@ module.exports = {
             promisade( projects.get(), res );
         });
 
-        router.post('/projects', (req, res) => {  
+        router.post('/projects', (req, res) => {
             promisade( projects.create( req.body ), res );
         });
 
@@ -24,7 +24,7 @@ module.exports = {
         });
 
         router.delete('/projects/:id', (req, res) => {
-            promisade( projects.delete( req.params.id ), res );  
+            promisade( projects.delete( req.params.id ), res );
         });
     }
 };

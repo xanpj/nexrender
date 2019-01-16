@@ -13,10 +13,11 @@ const render        = require('./tasks/render');
 const verify        = require('./tasks/verify');
 const actions       = require('./tasks/actions');
 const cleanup       = require('./tasks/cleanup');
+const convert       = require('./tasks/convert');
 
 const Project       = require('../api/models/project');
 
-const API_REQUEST_INTERVAL = process.env.API_REQUEST_INTERVAL || 15 * 60 * 1000; // 15 minutes
+const API_REQUEST_INTERVAL = process.env.API_REQUEST_INTERVAL || 15 * 1000; // 15 seconds
 
 /**
  * Apply tasks one by one
@@ -41,6 +42,7 @@ function applyTasks(project, resolve, reject) {
         .then(verify)
         .then(actions)
         .then(cleanup)
+        .then(convert)
         .then((project) => {
 
             console.info('----------------------------');
