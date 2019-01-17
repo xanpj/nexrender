@@ -66,7 +66,7 @@ module.exports = function(project) {
           file.end();
 
           audioCtx._kill();
-          project.settings.endFrame = audioLengthInSeconds;
+          project.settings.endFrame = audioLengthInSeconds * params.fps;
           resolve(project)
 
         }, function(err){
