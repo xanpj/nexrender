@@ -22,5 +22,5 @@ module.exports = {
 	aepxfile: 			"TA_TrapNation_Default.aepx",
 	port:    				23234,							//file server port
 	FPS: 						30, 								//FPS (frames per seconds)
-	duration: 			60 									//(in FPS) leave at 0 for entire audio length
+	duration: 			0 									//(in FPS) leave at 0 for entire audio length
 }
