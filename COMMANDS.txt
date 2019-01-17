@@ -2,6 +2,8 @@ Render machine
 node cli.js --renderer --host=<SERVER>:<PORT> --aerender=C:\\Program Files\\Adobe\\Adobe After Effects CC 2018\\Support Files\\aerender.exe
 
 node cli.js --renderer --host=<SERVER>:<PORT> --aerender="%AERENDER%"
+node cli.js --renderer --host=http://34.73.192.226:80 --aerender="%AERENDER%"
+
 API
 //node cli.js --api --host=localhost:<PORT>
 

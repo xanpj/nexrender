@@ -19,7 +19,7 @@ module.exports = function(project) {
 
         // iterate over each file and create rename(move) callback
         for (let asset of project.assets) {
-            console.log(path.basename(url.parse(asset.src).pathname)
+            console.log(path.basename(url.parse(asset.src).pathname))
             let src = path.join( project.workpath, path.basename(url.parse(asset.src).pathname));
             let dst = path.join( project.workpath, asset.name );
 
