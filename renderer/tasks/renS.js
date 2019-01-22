@@ -8,8 +8,9 @@ let spawn = child_process.spawn;
 let exec = child_process.exec;
 
 let MULTICORE = true
-let CORES = 64
-let MAX_TRIES = 2
+let CORES = 64 //64 for jpeg
+//MAC_CORES - 1. leave one physical core (ideally CPU0) for scheduling etc. see shift() later
+let MAX_TRIES = 0
 let AE_BINARY = "\"%AERENDER%\""
 
 function renderOnCore(project, params, core, maxrecursion){
@@ -82,7 +83,7 @@ function render(project) {
         // setup parameters
         params.push('-comp',        project.composition);
         params.push('-project',     path.join( project.workpath, project.template ));
-        params.push('-output',      path.join( project.workpath, project.resultname ));
+        params.push('-output',      path.join( project.workpath, "temp\\" + project.resultname ));
 
         // advanced parameters
         if (project.settings) {
@@ -137,8 +138,9 @@ function render(project) {
 
         // spawn process and begin rendering (on multiple cores seperately)
         let cores =  Array.apply(null, {length: CORES}).map(Number.call, Number)
+		cores.shift()
         return Promise.all(
-          cores.map((core) => setTimeout(function(){renderOnCore(project, params, core, MAX_TRIES)}, 2000)
+          cores.map((core) => renderOnCore(project, params, core, MAX_TRIES))
 		);
 
     });
@@ -147,8 +149,8 @@ function render(project) {
 let project = {
   composition: "Main",
   settings: {
-    outputExt: "jpg",
-    outputModule: "JPEGSeq",
+    outputExt: "jpg", //jpg
+    outputModule: "JPEGSeq", //JPEG
     renderSettings: "",
     startFrame: 0,
     endFrame: 7192,
