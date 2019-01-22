@@ -86,7 +86,7 @@ module.exports = function(project) {
             // pass params
             params.push('-mem_usage', image_cache_percent, max_mem_percent);
         }
-
+		console.log(params)
         // spawn process and begin rendering
         let ae = spawn(process.env.AE_BINARY, params);
 

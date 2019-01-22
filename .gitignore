@@ -2,6 +2,7 @@
 .sync/
 node_modules/
 temp/
+tempJPEG/
 results/
 coverage/
 
@@ -17,3 +18,5 @@ assets/
 
 # mac crap :D
 .DS_Store
+
+*.exe

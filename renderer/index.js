@@ -41,7 +41,7 @@ function applyTasks(project, resolve, reject) {
         .then(render)
         .then(verify)
         .then(actions)
-        .then(cleanup)
+        //.then(cleanup)
         .then(convert)
         .then((project) => {
 
@@ -112,12 +112,18 @@ function requestNextProject() {
  * to request again after API_REQUEST_INTERVAL
  */
 function startRecursion() {
-    requestNextProject().then((project) => {
+	requestNextProject().then((project) => {
+	startRender(project)
+	}).catch(() => {
+        console.info('request failed or no suitable projects found. retrying in:', API_REQUEST_INTERVAL, 'msec');
+        //setTimeout(() => { startRecursion() }, API_REQUEST_INTERVAL);
+    });
+    /*requestNextProject().then((project) => {
         startRender(project).then(startRecursion).catch(startRecursion)
     }).catch(() => {
         console.info('request failed or no suitable projects found. retrying in:', API_REQUEST_INTERVAL, 'msec');
         setTimeout(() => { startRecursion() }, API_REQUEST_INTERVAL);
-    });
+    });*/
 }
 
 /**

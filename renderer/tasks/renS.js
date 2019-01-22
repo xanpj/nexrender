@@ -5,22 +5,26 @@ const path          = require('path');
 
 // add ability to override
 let spawn = child_process.spawn;
+let exec = child_process.exec;
 
 let MULTICORE = true
-let CORES = 32
+let CORES = 64
 let MAX_TRIES = 2
+let AE_BINARY = "\"%AERENDER%\""
 
 function renderOnCore(project, params, core, maxrecursion){
   return new Promise((resolve, reject) => {
+	let aedata = []
     // -s '+ str(math.ceil((endTime/cores)*i))  +' -e '+ str(math.floor((endTime/cores)*(i+1)))  +'
     var isWin = process.platform === "win32";
     if(!isWin){
       reject( "OS unsupported for multicore processing" )
     }
-    let coreSelector = "start \"\" \\affinity";
+    let coreSelector = "start \"\" /affinity";
     let frameBoundaries = "-s " + Math.ceil((project.settings.endFrame/CORES)*core).toString() + " -e " + Math.floor((project.settings.endFrame/CORES)*(core+1)).toString()
-    let commandString = coreSelector + " " + Math.pow(2, core).toString(16).substring(2) + " " + process.env.AE_BINARY + " " + params.join(" ") + " " + frameBoundaries;
-    let ae = exec();
+    let commandString = coreSelector + " " + Math.pow(2, core).toString(16) + " " + AE_BINARY + " " + params.join(" ") + " " + frameBoundaries;
+	console.log(commandString)
+	let ae = exec(commandString);
 
     ae.on('error', (err) => {
         return reject(new Error('Error starting aerender process, did you set up the path correctly?'));
@@ -77,8 +81,8 @@ function render(project) {
 
         // setup parameters
         params.push('-comp',        project.composition);
-        params.push('-project',     path.join( process.cwd(), project.workpath, project.template ));
-        params.push('-output',      path.join( process.cwd(), project.workpath, project.resultname ));
+        params.push('-project',     path.join( project.workpath, project.template ));
+        params.push('-output',      path.join( project.workpath, project.resultname ));
 
         // advanced parameters
         if (project.settings) {
@@ -91,7 +95,7 @@ function render(project) {
                 params.push('-RStemplate', project.settings.renderSettings);
             }
             if (MULTICORE) {
-                params.push('-RStemplate',  "Multi-Machine Settings");
+                params.push('-RStemplate',  "\"Multi-Machine Settings\"");
             }
 
             if (project.settings.startFrame && !MULTICORE) {
@@ -102,12 +106,12 @@ function render(project) {
                 params.push('-e', project.settings.endFrame);
             }
 
-            if (project.settings.incrementFrame && !MULTICORE)) {
+            if (project.settings.incrementFrame && !MULTICORE) {
                 params.push('-i', project.settings.incrementFrame);
             }
         }
 
-        if (process.env.AE_MULTIFRAMES && !MULTICORE)) {
+        if (process.env.AE_MULTIFRAMES && !MULTICORE) {
             params.push('-mp');
         }
 
@@ -132,10 +136,10 @@ function render(project) {
         }
 
         // spawn process and begin rendering (on multiple cores seperately)
-        let cores = CORES - 1
+        let cores =  Array.apply(null, {length: CORES}).map(Number.call, Number)
         return Promise.all(
-          cores.map((core) => renderOnCore(project, params, core, MAX_TRIES))
-       });
+          cores.map((core) => setTimeout(function(){renderOnCore(project, params, core, MAX_TRIES)}, 2000)
+		);
 
     });
 };
@@ -151,7 +155,7 @@ let project = {
     incrementFrame: 0
   },
   workpath: "C:\\Users\\apjagaciak\\Documents\\code\\trapnationrender-prod",
-  template: "assets\\TrapNationRender_Default.aepx",
+  template: "assets\\TA_TrapNation_Default.aepx",
   resultname: "",
   uid: "1111"
 }
