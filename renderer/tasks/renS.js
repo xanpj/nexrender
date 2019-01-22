@@ -2,6 +2,7 @@
 
 const child_process = require('child_process');
 const path          = require('path');
+const fs            = require ('fs');
 
 // add ability to override
 let spawn = child_process.spawn;
@@ -13,43 +14,106 @@ let CORES = 64 //64 for jpeg
 let MAX_TRIES = 0
 let AE_BINARY = "\"%AERENDER%\""
 
-function renderOnCore(project, params, core, maxrecursion){
+
+function deleteZeroSizeFrames(folder, callback){
   return new Promise((resolve, reject) => {
-	let aedata = []
-    // -s '+ str(math.ceil((endTime/cores)*i))  +' -e '+ str(math.floor((endTime/cores)*(i+1)))  +'
-    var isWin = process.platform === "win32";
-    if(!isWin){
-      reject( "OS unsupported for multicore processing" )
-    }
-    let coreSelector = "start \"\" /affinity";
-    let frameBoundaries = "-s " + Math.ceil((project.settings.endFrame/CORES)*core).toString() + " -e " + Math.floor((project.settings.endFrame/CORES)*(core+1)).toString()
-    let commandString = coreSelector + " " + Math.pow(2, core).toString(16) + " " + AE_BINARY + " " + params.join(" ") + " " + frameBoundaries;
-	console.log(commandString)
-	let ae = exec(commandString);
+    fs.readdir(folder, function (err, files) {
+      if (err) return reject(err);
 
-    ae.on('error', (err) => {
-        return reject(new Error('Error starting aerender process, did you set up the path correctly?'));
+      files.forEach(function (file, index) {
+        // Make one pass and make the file complete
+        var fromPath = path.join(folder, file);
+
+        fs.stat(fromPath, function (err, stat) {
+          if (err) {
+            console.error("Error stating file.", err);
+            if (err) return reject(err);
+          }
+
+          if (stat.isFile()) {
+            console.log("'%s' is a file.", fromPath);
+            let fileEmpty = stat.size == 0
+            if(fileEmpty){
+              //Potential problem if other thread is writing that file
+              fs.unlink(fromPath, (err) => {
+                if (err) {
+                  console.error("File moving error.", err);
+                  if (err) return reject(err);
+                } else {
+                  console.log("Deleted file '%s'.", fromPath);
+                }
+              });
+            }
+          }
+
+        });
+      });
     });
+  });
+}
 
-    // on data (logs)
-    ae.stdout.on('data', (data) => {
+function renderMissingFrames(project, params, core, maxrecursion){
+  console.log("\nrenderMissingFrames\n")
+  const RENDER_ALL_FRAMES_ON_SINGLE_CORE = true;
+  return renderOnCore(project, params, core, maxrecursion-1, RENDER_ALL_FRAMES_ON_SINGLE_CORE);
+}
+
+function renderOnCore(project, params, core, maxrecursion, renderAllFrames){
+  const DELAY = 2000
+  setTimeout(function(){
+    return new Promise((resolve, reject) => {
+      let aedata = []
+      // -s '+ str(math.ceil((endTime/cores)*i))  +' -e '+ str(math.floor((endTime/cores)*(i+1)))  +'
+      var isWin = process.platform === "win32";
+      if(!isWin){
+        return reject( "OS unsupported for multicore processing" )
+      }
+      let coreSelector = "start \"\" /affinity";
+      let frameBoundaries = "-s " + project.settings.startFrame + " -e " + project.settings.endFrame
+      if(!renderAllFrames){
+        let partToRender = core - 1; //because we avoid using CPU0
+        frameBoundaries = "-s " + Math.ceil((project.settings.endFrame/CORES)*partToRender).toString() + " -e " + Math.floor((project.settings.endFrame/CORES)*(partToRender+1)).toString()
+      }
+      let commandString = coreSelector + " " + Math.pow(2, core).toString(16) + " " + AE_BINARY + " " + params.join(" ") + " " + frameBoundaries;
+
+      console.log(commandString)
+      let ae = exec(commandString);
+
+      ae.on('error', (err) => {
+          return reject(new Error('Error starting aerender process, did you set up the path correctly?'));
+      });
+
+      // on data (logs)
+      ae.stdout.on('data', (data) => {
+          aedata.push(data.toString());
+      });
+
+      // on error (logs)
+      ae.stderr.on('data', (data) => {
         aedata.push(data.toString());
-    });
+      });
 
-    // on error (logs)
-    ae.stderr.on('data', (data) => {
-      aedata.push(data.toString());
-    });
-
-    // on finish (code 0 - success, other - error)
-    ae.on('close', (code) => {
-      if(maxrecursion > 0){
-        return renderOnCore(project, params, core, maxrecursion-1)
-       } else {
-        return (code !== 0) ? reject( aedata.join('') ) : resolve( project );
-       }
-    });
-  })
+      // on finish (code 0 - success, other - error)
+      ae.on('close', (code) => {
+        if(maxrecursion > 0){
+          return renderOnCore(project, params, core, maxrecursion-1, renderAllFrames)
+         } else {
+          if (code !== 0) {
+            return reject( aedata.join('') )
+          }  else {
+              let folder = project.workpath + "\\temp"
+              deleteZeroSizeFrames(folder)
+              .then(renderMissingFrames(project, params, core, maxrecursion))
+              .then( (res) => resolve( project ))
+              .catch( (err) => {
+                aedata.push(err);
+                reject( aedata.join('') )
+              })
+          }
+         }
+      });
+    })
+  }, DELAY);
 }
 
 /**
@@ -73,7 +137,7 @@ function render(project) {
         // NOTE: if you want to change this field, also goto actions/copy-to-results.js, and apply changes there too
         if (project.settings &&
             project.settings.outputExt &&
-            ['jpeg', 'jpg'].indexOf(
+            ['jpeg', 'jpg', 'tiff'].indexOf(
                 project.settings.outputExt.toLowerCase()
             ) !== -1
         ) {
@@ -138,10 +202,11 @@ function render(project) {
 
         // spawn process and begin rendering (on multiple cores seperately)
         let cores =  Array.apply(null, {length: CORES}).map(Number.call, Number)
-		cores.shift()
+		    cores.shift()
+        const RENDER_ALL_FRAMES_ON_SINGLE_CORE = false
         return Promise.all(
-          cores.map((core) => renderOnCore(project, params, core, MAX_TRIES))
-		);
+          cores.map((core) => renderOnCore(project, params, core, MAX_TRIES, RENDER_ALL_FRAMES_ON_SINGLE_CORE))
+		    );
 
     });
 };
@@ -157,11 +222,13 @@ let project = {
     incrementFrame: 0
   },
   workpath: "C:\\Users\\apjagaciak\\Documents\\code\\trapnationrender-prod",
+  //workpath: "/Users/alex/Documents/code/current/trapnationrender/apiserver/api/",
   template: "assets\\TA_TrapNation_Default.aepx",
   resultname: "",
   uid: "1111"
 }
 
+//TEST Multicore Rendering
 render(project)
 .then( (res) => {
   console.log(res)
@@ -169,3 +236,20 @@ render(project)
 .catch( (err) => {
   console.log(err)
 })
+
+
+/*
+//TEST Deleting
+let params = []
+let aedata = []
+let core = 2
+let maxrecursion = 0
+let folder = project.workpath + "temp"
+deleteZeroSizeFrames(folder)
+.then(renderMissingFrames(project, params, core, maxrecursion))
+.then( (res) => resolve( project ))
+.catch( (err) => {
+  aedata.push(err);
+  console.log( aedata.join('') )
+})
+*/
