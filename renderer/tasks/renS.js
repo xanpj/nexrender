@@ -9,9 +9,9 @@ let spawn = child_process.spawn;
 let exec = child_process.exec;
 
 let MULTICORE = true
-let CORES = 64 //64 for jpeg
+let CORES = 8 //64 for jpeg
 //MAC_CORES - 1. leave one physical core (ideally CPU0) for scheduling etc. see shift() later
-let MAX_TRIES = 0
+let MAX_TRIES = 1
 let AE_BINARY = "\"%AERENDER%\""
 
 
@@ -21,49 +21,47 @@ function deleteZeroSizeFrames(folder, callback){
       if (err) return reject(err);
 
       files.forEach(function (file, index) {
-        // Make one pass and make the file complete
+        // Make one pass and remove empty files
         var fromPath = path.join(folder, file);
 
         fs.stat(fromPath, function (err, stat) {
-          if (err) {
-            console.error("Error stating file.", err);
-            if (err) return reject(err);
-          }
+          if (err) return reject(err);
 
           if (stat.isFile()) {
-            console.log("'%s' is a file.", fromPath);
             let fileEmpty = stat.size == 0
             if(fileEmpty){
-              //Potential problem if other thread is writing that file
+              //TODO: Potential problem if other thread is writing that file
               fs.unlink(fromPath, (err) => {
-                if (err) {
-                  console.error("File moving error.", err);
-                  if (err) return reject(err);
-                } else {
-                  console.log("Deleted file '%s'.", fromPath);
-                }
+                if (err) return reject(err);
               });
             }
           }
 
         });
       });
+	  resolve();
     });
+	
   });
 }
 
 function renderMissingFrames(project, params, core, maxrecursion){
-  console.log("\nrenderMissingFrames\n")
-  const RENDER_ALL_FRAMES_ON_SINGLE_CORE = true;
-  return renderOnCore(project, params, core, maxrecursion-1, RENDER_ALL_FRAMES_ON_SINGLE_CORE);
+  fs.readdir(project.workpath + "\\temp", (err, files) => {  //TODO remove temp
+	if (err) return reject(err);
+    const RENDER_ALL_FRAMES_ON_SINGLE_CORE = true;
+    return ((files.length - 1) == Math.floor(project.settings.endFrame)) ? true : renderOnCore(project, params, core, maxrecursion, RENDER_ALL_FRAMES_ON_SINGLE_CORE);
+  });
 }
 
 function renderOnCore(project, params, core, maxrecursion, renderAllFrames){
-  const DELAY = 2000
+  if(renderAllFrames) {
+	  console.log("Missing frames detected!")
+  } 
+  
+  const DELAY = (!renderAllFrames && maxrecursion == MAX_TRIES) ? core * 1000 : 0; //Delay for first initiation when all cores are started simoultanoussly
   setTimeout(function(){
     return new Promise((resolve, reject) => {
       let aedata = []
-      // -s '+ str(math.ceil((endTime/cores)*i))  +' -e '+ str(math.floor((endTime/cores)*(i+1)))  +'
       var isWin = process.platform === "win32";
       if(!isWin){
         return reject( "OS unsupported for multicore processing" )
@@ -72,7 +70,8 @@ function renderOnCore(project, params, core, maxrecursion, renderAllFrames){
       let frameBoundaries = "-s " + project.settings.startFrame + " -e " + project.settings.endFrame
       if(!renderAllFrames){
         let partToRender = core - 1; //because we avoid using CPU0
-        frameBoundaries = "-s " + Math.ceil((project.settings.endFrame/CORES)*partToRender).toString() + " -e " + Math.floor((project.settings.endFrame/CORES)*(partToRender+1)).toString()
+		let USED_CORES = CORES - 1;
+        frameBoundaries = "-s " + Math.ceil((project.settings.endFrame/USED_CORES)*partToRender).toString() + " -e " + Math.floor((project.settings.endFrame/USED_CORES)*(partToRender+1)).toString()
       }
       let commandString = coreSelector + " " + Math.pow(2, core).toString(16) + " " + AE_BINARY + " " + params.join(" ") + " " + frameBoundaries;
 
@@ -95,22 +94,24 @@ function renderOnCore(project, params, core, maxrecursion, renderAllFrames){
 
       // on finish (code 0 - success, other - error)
       ae.on('close', (code) => {
-        if(maxrecursion > 0){
-          return renderOnCore(project, params, core, maxrecursion-1, renderAllFrames)
-         } else {
-          if (code !== 0) {
-            return reject( aedata.join('') )
-          }  else {
-              let folder = project.workpath + "\\temp"
-              deleteZeroSizeFrames(folder)
-              .then(renderMissingFrames(project, params, core, maxrecursion))
-              .then( (res) => resolve( project ))
-              .catch( (err) => {
-                aedata.push(err);
-                reject( aedata.join('') )
-              })
-          }
-         }
+		  if (code !== 0) {
+			return (maxrecursion > 0) ? renderOnCore(project, params, core, maxrecursion-1, renderAllFrames) : reject( aedata.join('') )
+		  } else {
+			  if(maxrecursion > -1) {
+				  maxrecursion = (renderAllFrames) ? maxrecursion : MAX_TRIES  //after finishing with partial workload, give the process MAX_TRIES again to render up missing frames (before renderAllFrames (missing frame filling) is initiated
+				  let folder = project.workpath + "\\temp" //TODO remove temp
+				  deleteZeroSizeFrames(folder)
+				  .then(renderMissingFrames(project, params, core, maxrecursion - 1))
+				  .then( (res) => resolve( project ))
+				  .catch( (err) => {
+					aedata.push(err);
+					reject( aedata.join('') )
+				  })
+			  } else {
+				aedata.push("Max tries for rendering missing frames exceeded");
+				reject( aedata.join('') )
+			  }
+		  }
       });
     })
   }, DELAY);
@@ -228,6 +229,7 @@ let project = {
   uid: "1111"
 }
 
+/*
 //TEST Multicore Rendering
 render(project)
 .then( (res) => {
@@ -236,20 +238,20 @@ render(project)
 .catch( (err) => {
   console.log(err)
 })
+*/
 
 
-/*
 //TEST Deleting
 let params = []
 let aedata = []
 let core = 2
 let maxrecursion = 0
-let folder = project.workpath + "temp"
+let folder = project.workpath + "\\temp"
 deleteZeroSizeFrames(folder)
 .then(renderMissingFrames(project, params, core, maxrecursion))
-.then( (res) => resolve( project ))
+.then( (res) => console.log("Worked!"))
 .catch( (err) => {
   aedata.push(err);
   console.log( aedata.join('') )
 })
-*/
+

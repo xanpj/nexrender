@@ -9,4 +9,5 @@ ffmpeg.exe -r 30 -i temp\frames%04d.jpg -i assets\song.mp3 -c:v libx264 -preset 
 
 WORKS:
 ffmpeg.exe -r 30 -i temp\frames%04d.jpg -i assets\song.mp3 -crf 1 -pix_fmt yuv420p -c:a aac -b:a 384k -r 30 -shortest -y results\video-from-frames.mp4
+ffmpeg.exe -r 30 -i temp\result_%05d.jpg -i assets\song.mp3 -crf 1 -pix_fmt yuv420p -c:a aac -b:a 384k -r 30 -shortest -y results\video-from-frames.mp4
 
