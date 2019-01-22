@@ -2,6 +2,7 @@
 const config = require('../../CONFIG.js');
 const spawn = require('child_process').spawn;
 
+const MULTICORE = true
 module.exports = function(project) {
     return new Promise((resolve, reject) => {
     try {
@@ -15,22 +16,23 @@ module.exports = function(project) {
             if(isWin) {
               cmd = 'ffmpeg.exe';
             }
+
             var resultFilePath = "results/"+project.uid+"_result." + config.outputExt
             var resultFilePathNew = "results/"+project.uid+"_result" + ".mp4"
+            if(MULTICORE) {
+              resultFilePath = "temp\\" + "result_\%05d." + config.outputExt
+            }
+            var audioFile = project.workpath+"/"+project.assets.find(x => x.type == "audio").name
             var args = [
+                '-r', '30',
                 '-i', resultFilePath,
-                '-c:v','libx264',
-                '-preset','slow',
-                '-profile:v','high',
-                '-crf','18',
-                '-coder','1',
+                '-i', audioFile,
+                '-crf','1',
                 '-pix_fmt','yuv420p',
-                '-movflags','+faststart',
-                '-g','30',
-                '-bf','2',
                 '-c:a','aac',
                 '-b:a','384k',
-                '-profile:a','aac_low',
+                '-r', '30',
+                '-shortest','-y',
                 resultFilePathNew
             ];
 
