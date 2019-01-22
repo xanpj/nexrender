@@ -13,7 +13,9 @@ let CORES = 8 //64 for jpeg
 //MAC_CORES - 1. leave one physical core (ideally CPU0) for scheduling etc. see shift() later
 let MAX_TRIES = 1
 let AE_BINARY = "\"%AERENDER%\""
-let TEMP_FOLDER = "\\temp"
+let TEMP_FOLDER = "\\temp\\"
+
+let THE_FOLDER = "C:\\Users\\apjagaciak\\Documents\\code\\trapnationrender-prod\\temp\\sXH4_qbv4"+TEMP_FOLDER
 
 function deleteZeroSizeFrames(folder, callback){
   return new Promise((resolve, reject) => {
@@ -32,6 +34,7 @@ function deleteZeroSizeFrames(folder, callback){
             if(fileEmpty){
               //TODO: Potential problem if other thread is writing that file
               fs.unlink(fromPath, (err) => {
+				console.log("Deleted file: "+ fromPath)
                 if (err) return reject(err);
               });
             }
@@ -46,11 +49,14 @@ function deleteZeroSizeFrames(folder, callback){
 }
 
 function renderMissingFrames(project, params, core, maxrecursion){
-  fs.readdir(project.workpath + TEMP_FOLDER, (err, files) => {  //TODO remove temp
-	if (err) return reject(err);
-    const RENDER_ALL_FRAMES_ON_SINGLE_CORE = true;
-    return ((files.length - 1) == Math.floor(project.settings.endFrame)) ? true : renderOnCore(project, params, core, maxrecursion, RENDER_ALL_FRAMES_ON_SINGLE_CORE);
-  });
+	return new Promise((resolve, reject) => {
+	  fs.readdir(THE_FOLDER, (err, files) => {  //TODO project.workpath + TEMP_FOLDER
+		console.log("checking Missing files. File.length: "+ (files.length - 1) + "endFrame: " + Math.floor(project.settings.endFrame))
+		if (err) return reject(err);
+		const RENDER_ALL_FRAMES_ON_SINGLE_CORE = true;
+		return ((files.length - 1) == Math.floor(project.settings.endFrame)) ? resolve() : resolve( renderOnCore(project, params, core, maxrecursion, RENDER_ALL_FRAMES_ON_SINGLE_CORE));
+	  });
+	})
 }
 
 
@@ -58,8 +64,8 @@ function renderOnCore(project, params, core, maxrecursion, renderAllFrames){
   if(renderAllFrames) {
 	  console.log("Missing frames detected!")
   }
-  const DELAY = (!renderAllFrames && maxrecursion == MAX_TRIES) ? core * 1000 : 0; //Delay for first initiation when all cores are started simoultanoussly
-  setTimeout(function(){
+  const DELAY = (!renderAllFrames && maxrecursion == MAX_TRIES) ? core * 2000 : 0; //Delay for first initiation when all cores are started simoultanoussly
+
     return new Promise((resolve, reject) => {
       let aedata = []
       var isWin = process.platform === "win32";
@@ -95,11 +101,13 @@ function renderOnCore(project, params, core, maxrecursion, renderAllFrames){
       // on finish (code 0 - success, other - error)
       ae.on('close', (code) => {
 		  if (code !== 0) {
+			console.log("CPU" + core + "failed. Maxrecursion" + maxrecursion)
 			return (maxrecursion > 0) ? renderOnCore(project, params, core, maxrecursion-1, renderAllFrames) : reject( aedata.join('') )
 		  } else {
 			  if(maxrecursion > -1) {
+				  console.log("CPU" + core + "succeeded. Maxrecursion" + maxrecursion)
 				  maxrecursion = (renderAllFrames) ? maxrecursion : MAX_TRIES  //after finishing with partial workload, give the process MAX_TRIES again to render up missing frames (before renderAllFrames (missing frame filling) is initiated
-				  let folder = project.workpath + TEMP_FOLDER //TODO remove temp
+				  let folder = THE_FOLDER//project.workpath + TEMP_FOLDER //TODO remove temp
 				  deleteZeroSizeFrames(folder)
 				  .then(renderMissingFrames(project, params, core, maxrecursion - 1))
 				  .then( (res) => resolve( project ))
@@ -114,7 +122,6 @@ function renderOnCore(project, params, core, maxrecursion, renderAllFrames){
 		  }
       });
     })
-  }, DELAY);
 }
 
 /**
@@ -124,6 +131,9 @@ module.exports = function(project) {
     return new Promise((resolve, reject) => {
 
         console.info(`[${project.uid}] rendering project...`);
+		
+		let newTempPath = path.join( process.cwd(), project.workpath, TEMP_FOLDER)
+		!fs.existsSync(newTempPath) && fs.mkdirSync(newTempPath);
 
         // create container for data and parameters
         let aedata = [];
@@ -142,13 +152,13 @@ module.exports = function(project) {
                 project.settings.outputExt.toLowerCase()
             ) !== -1
         ) {
-            project.resultname = TEMP_FOLDER + 'result_[#####]' + '.' + outext;
+            project.resultname = THE_FOLDER + 'result_[#####]' + '.' + outext;
         }
 
         // setup parameters
         params.push('-comp',        project.composition);
         params.push('-project',     path.join( process.cwd(), project.workpath, project.template ));
-        params.push('-output',      path.join( process.cwd(), project.workpath, project.resultname ));
+        params.push('-output',      project.resultname/*path.join( process.cwd(), project.workpath, project.resultname )*/);
 
         // advanced parameters
         if (project.settings) {
@@ -205,9 +215,11 @@ module.exports = function(project) {
         let cores =  Array.apply(null, {length: CORES}).map(Number.call, Number)
 		    cores.shift()
         const RENDER_ALL_FRAMES_ON_SINGLE_CORE = false
-        return Promise.all(
-          cores.map((core) => renderOnCore(project, params, core, MAX_TRIES, RENDER_ALL_FRAMES_ON_SINGLE_CORE))
-		    );
+        let results = Promise.all(cores.map((core) => renderOnCore(project, params, core, MAX_TRIES, RENDER_ALL_FRAMES_ON_SINGLE_CORE)))
+		results
+		.then(res => {console.log(res); resolve (project) })
+		.catch(err => reject(err) )
+		 
 
     });
 };

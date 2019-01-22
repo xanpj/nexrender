@@ -1,21 +1,22 @@
 'use strict';
 
 // can be overrided in test
-let api             = require('../api');
+let api             	= require('../api');
 
-const setup         = require('./tasks/setup');
-const download      = require('./tasks/download');
-const rename        = require('./tasks/rename');
-const filter        = require('./tasks/filter');
-const patch         = require('./tasks/patch');
-const keyframes     = require('./tasks/keyframes');
-const render        = require('./tasks/render');
-const verify        = require('./tasks/verify');
-const actions       = require('./tasks/actions');
-const cleanup       = require('./tasks/cleanup');
-const convert       = require('./tasks/convert');
+const setup         	= require('./tasks/setup');
+const download     		= require('./tasks/download');
+const rename        	= require('./tasks/rename');
+const filter        	= require('./tasks/filter');
+const patch        	 	= require('./tasks/patch');
+const keyframes     	= require('./tasks/keyframes');
+const render        	= require('./tasks/render');
+const rendermulticore	= require('./tasks/rendermulticore');
+const verify        	= require('./tasks/verify');
+const actions       	= require('./tasks/actions');
+const cleanup       	= require('./tasks/cleanup');
+const convert       	= require('./tasks/convert');
 
-const Project       = require('../api/models/project');
+const Project       	= require('../api/models/project');
 
 const API_REQUEST_INTERVAL = process.env.API_REQUEST_INTERVAL || 15 * 1000; // 15 seconds
 
@@ -38,7 +39,7 @@ function applyTasks(project, resolve, reject) {
         .then(filter)
         .then(patch)
         .then(keyframes)
-        .then(render)
+        .then(rendermulticore)
         .then(verify)
         .then(actions)
         //.then(cleanup)

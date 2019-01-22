@@ -17,12 +17,15 @@ module.exports = function(project) {
               cmd = 'ffmpeg.exe';
             }
 
-            var resultFilePath = "results/"+project.uid+"_result." + config.outputExt
+            var resultFilePath = "results/"+project.uid+"_result." + "jpg"//config.outputExt
             var resultFilePathNew = "results/"+project.uid+"_result" + ".mp4"
             if(MULTICORE) {
-              resultFilePath = "temp\\" + "result_\%05d." + config.outputExt
+              resultFilePath = "\\temp\\" + "result_\%05d." + "jpg"
+			  //resultFilePath = path.join( process.cwd(), project.workpath, resultFilePath )
+			  resultFilePath = "C:\\Users\\apjagaciak\\Documents\\code\\trapnationrender-prod\\temp\\sXH4_qbv4"+resultFilePath
+
             }
-            var audioFile = project.workpath+"/"+project.assets.find(x => x.type == "audio").name
+            var audioFile = project.workpath+"\\"+project.assets.find(x => x.type == "audio").name //TODO
             var args = [
                 '-r', '30',
                 '-i', resultFilePath,
@@ -35,7 +38,7 @@ module.exports = function(project) {
                 '-shortest','-y',
                 resultFilePathNew
             ];
-
+			console.log(args)
             var proc = spawn(cmd, args);
 
             proc.stdout.on('data', function(data) {
@@ -43,11 +46,12 @@ module.exports = function(project) {
             });
 
             proc.stderr.on('data', function(data) {
-                //console.log(data)
+                console.log(data)
                 //throw new Error("Video conversion failed. Pre-converted video in results folder ");
             });
 
-            proc.on('close', function() {
+            proc.on('close', function(err) {
+				if(err) console.log(err)
                 console.log('Conversion to MP4 format finished!');
             });
             resolve(project)
